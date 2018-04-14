@@ -30,6 +30,12 @@ int main(int argc, char** argv){
 			args[j] = NULL;
 			if ((pid = fork()) == 0){
 				execvp(args[0], args);
+				char temp[sizeof(args[0]) + 2];
+				strcat(temp, "./");
+				strcat(temp, args[0]);
+				args[0] = temp;
+				execvp(args[0], args);
+				perror("Execute");
 				exit(0);
 			} else {
 				waitpid(pid, NULL, 0);
