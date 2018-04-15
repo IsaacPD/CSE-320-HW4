@@ -16,93 +16,153 @@ int timer = 5;
 struct addr_in_use addresses[25];
 struct files_in_use files[25];
 
-//TODO add semaphore for thread safety
+sem_t sem_file;
+sem_t sem_alloc;
+
+void cse320_init(){
+	sem_init(&sem_file, 0, 1);
+	sem_init(&sem_alloc, 0, 1);
+}
+
 void * cse320_malloc(size_t size){
 	sigset_t block, prev;
 	sigfillset(&block);
 	if (size_alloc >= 25){
 		printf("Not enough memory\n");
 		errno = ENOMEM;
-		return (void*)-1;
+		exit(-1);
 	}
 	void * ret = malloc(size);
 	sigprocmask(SIG_BLOCK, &block, &prev);
 
-	//LOCJ HERE
+	//LOCK HERE
+	sem_wait(&sem_alloc);
 	addresses[size_alloc].addr = ret;
 	addresses[size_alloc].ref_count = 1;	
 	size_alloc++;
 	//UNLOCK HERE
-
+	sem_post(&sem_alloc);
+	
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return ret;
 }
 
-int cse320_free(void * ptr){	
+void cse320_free(void * ptr){
+	sigset_t block, prev;
+	sigfillset(&block);	
 	int i;
+	//LOCK
+	sigprocmask(SIG_BLOCK, &block, &prev);
+	sem_wait(&sem_alloc);
 	for (i = 0; i < size_alloc; i++){
 		if (addresses[i].addr == ptr){
 			if (addresses[i].ref_count == 0){
+				//UNLOCK
+				sem_post(&sem_alloc);
+				sigprocmask(SIG_SETMASK, &prev, NULL);
 				printf("Free: Double free attempt\n");
 				errno = 13;
-				return -1;
+				exit(-1);
 			}
 			free(ptr);
 			addresses[i].ref_count = 0;
-			return 0;
+			//UNLOCK
+			sem_post(&sem_alloc);
+			sigprocmask(SIG_SETMASK, &prev, NULL);
+			return;
 		}
 	}
+	//UNLOCK
+	sem_post(&sem_alloc);
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 	printf("Free: Illegal address\n");
 	errno = EFAULT;
-	return -1;
+	exit(-1);
 }
 
-FILE * cse320_fopen(const char * filename){
+FILE * cse320_fopen(const char * filename, const char * mode){
+	sigset_t block, prev;
+	sigfillset(&block);
 	int i;
+	//LOCK
+	sigprocmask(SIG_BLOCK, &block, &prev);
+	sem_wait(&sem_file);
 	for (i = 0; i < files_opened; i++){
 		if (strcmp(files[i].filename, filename) == 0){
 			files[i].ref_count++;
+			//UNLOCK
+			sigprocmask(SIG_SETMASK, &prev, NULL);
+			sem_post(&sem_file);
 			return files[i].file;
 		}
 	}
-	files[files_opened].file = fopen(filename, "rw+");
+	FILE * file = fopen(filename, mode);
+	if (file == NULL) return NULL;
+	files[files_opened].file = file;
 	files[files_opened].filename = filename;
 	files[files_opened].ref_count = 1;
 	files_opened++;
-
+	//UNLOCK
+	sem_post(&sem_file);
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return files[files_opened-1].file;
 }
 
-int cse320_fclose(const char* filename){
+void cse320_fclose(const char* filename){
+	sigset_t block, prev;
+	sigfillset(&block);
 	int i;
+	//LOCK
+	sigprocmask(SIG_BLOCK, &block, &prev);
+	sem_wait(&sem_file);
 	for (i = 0; i <files_opened; i++){
 		if (strcmp(files[i].filename, filename) == 0){
 			if(files[i].ref_count == 0){
+				//UNLOCK
+				sem_post(&sem_file);
+				sigprocmask(SIG_SETMASK, &prev, NULL);
 				printf("Close: Ref count is zero\n");
 				errno = EINVAL;
-				return -1;
+				exit(-1);
 			}
 			files[i].ref_count--;
-			return 0;
+			//UNLOCK
+			sem_post(&sem_file);
+			sigprocmask(SIG_SETMASK, &prev, NULL);
+			return;
 		}
 	}
+	//UNLOCK
+	sem_post(&sem_file);
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 	printf("Close: Illegal filename\n");
 	errno = ENOENT;
-	return -1;
+	exit(-1);
 }
 
 void cse320_clean(){
+	sigset_t block, prev;
+	sigfillset(&block);
 	int i;
 	//LOCK
+	sigprocmask(SIG_BLOCK, &block, &prev);
+	sem_wait(&sem_alloc);
+	sem_wait(&sem_file);
 	for (i = 0; i < size_alloc; i++){
 		if(addresses[i].ref_count > 0){
 			free(addresses[i].addr);
 		}
 	}
 	for (i = 0; i < files_opened; i++){
-		fclose(files[i].file);
+		if (files[i].ref_count != -1){
+			fclose(files[i].file);
+			files[i].ref_count = -1;
+		}
 	}
 	//UNLOCK
+	sem_post(&sem_alloc);
+	sem_post(&sem_file);
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 }
 
 void handler(int sig){
@@ -110,6 +170,7 @@ void handler(int sig){
 	sigfillset(&block);
 	sigprocmask(SIG_BLOCK, &block, &prev);
 	while (wait(NULL) > 0){;}
+	alarm(timer);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return;
 }
@@ -123,6 +184,6 @@ pid_t cse320_fork(){
 	return pid;
 }
 
-int cse320_settimer(int time){
+void cse320_settimer(int time){
 	timer = time;
 }
