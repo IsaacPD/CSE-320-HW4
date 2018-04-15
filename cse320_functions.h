@@ -17,6 +17,7 @@ struct files_in_use{
 	FILE * file;
 };
 
+//TODO delete these so they cannot be accessed publicly once testings is complete
 extern int size_alloc;
 extern int files_opened;
 extern struct addr_in_use addresses[25];
