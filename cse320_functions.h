@@ -47,7 +47,7 @@ FILE * 	cse320_fopen(const char *, const char *);
 
 /*
  * Decreases the ref_count by 1 of the file_in_use struct corresponding to the given parameter filename.
- * If ref_count is 0 as a result, it does not close the file, as subsequent calls of cse320_fopen() may use that FILE *.
+ * If ref_count is 0 as a result, fclose() is called on the corresponding file.
  * If ref_count is 0 prior to execution or the file has not been opened,
  * function exits with return value -1 and sets errno appropriately.
  */

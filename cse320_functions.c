@@ -126,6 +126,8 @@ void cse320_fclose(const char* filename){
 				exit(-1);
 			}
 			files[i].ref_count--;
+			if (files[i].ref_count == 0)
+				fclose(files[i].file);
 			//UNLOCK
 			sem_post(&sem_file);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
@@ -154,9 +156,8 @@ void cse320_clean(){
 		}
 	}
 	for (i = 0; i < files_opened; i++){
-		if (files[i].ref_count != -1){
+		if (files[i].ref_count > 0){
 			fclose(files[i].file);
-			files[i].ref_count = -1;
 		}
 	}
 	//UNLOCK
