@@ -163,6 +163,8 @@ void cse320_clean(){
 	//UNLOCK
 	sem_post(&sem_alloc);
 	sem_post(&sem_file);
+	sem_destroy(&sem_alloc);
+	sem_destroy(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 }
 
