@@ -10,6 +10,7 @@
 #include "cse320_functions.h"
 
 int timer = 5;
+int alarmset = 0;
 
 struct addr_in_use * addresses;
 struct addr_in_use * addTail;
@@ -206,17 +207,22 @@ void handler(int sig){
 	sigset_t block, prev;
 	sigfillset(&block);
 	sigprocmask(SIG_BLOCK, &block, &prev);
-	while (wait(NULL) > 0){;}
+	while (waitpid(-1, NULL, WNOHANG) > 0){;}
 	alarm(timer);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return;
 }
 
 pid_t cse320_fork(){
-	signal(SIGALRM, handler);
+	if (alarmset == 0){
+		signal(SIGALRM, handler);
+	}
 	pid_t pid;
 	if ((pid = fork()) > 0){
-		alarm(timer);
+		if (alarmset == 0){
+			alarmset = 1;
+			alarm(timer);
+		}
 	}
 	return pid;
 }
