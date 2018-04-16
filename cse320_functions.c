@@ -9,12 +9,12 @@
 #include <signal.h>
 #include "cse320_functions.h"
 
-int size_alloc = 0;
-int files_opened = 0;
 int timer = 5;
 
-struct addr_in_use addresses[25];
-struct files_in_use files[25];
+struct addr_in_use * addresses;
+struct addr_in_use * addTail;
+struct files_in_use * files;
+struct files_in_use * fileTail;
 
 sem_t sem_file;
 sem_t sem_alloc;
@@ -22,24 +22,29 @@ sem_t sem_alloc;
 void cse320_init(){
 	sem_init(&sem_file, 0, 1);
 	sem_init(&sem_alloc, 0, 1);
+	addresses = malloc(sizeof(struct addr_in_use));
+	addresses->ref_count = -1;
+	files = malloc(sizeof(struct files_in_use));
+	files->ref_count = -1;
+
+	addTail = addresses;
+	fileTail = files;
 }
 
 void * cse320_malloc(size_t size){
 	sigset_t block, prev;
 	sigfillset(&block);
-	if (size_alloc >= 25){
-		printf("Not enough memory\n");
-		errno = ENOMEM;
-		exit(-1);
-	}
 	void * ret = malloc(size);
 	sigprocmask(SIG_BLOCK, &block, &prev);
 
 	//LOCK HERE
 	sem_wait(&sem_alloc);
-	addresses[size_alloc].addr = ret;
-	addresses[size_alloc].ref_count = 1;	
-	size_alloc++;
+	addTail->next = malloc(sizeof(struct addr_in_use));
+	addTail = addTail->next;
+
+	addTail->addr = ret;
+	addTail->ref_count = 1;	
+	
 	//UNLOCK HERE
 	sem_post(&sem_alloc);
 	
@@ -54,9 +59,10 @@ void cse320_free(void * ptr){
 	//LOCK
 	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_alloc);
-	for (i = 0; i < size_alloc; i++){
-		if (addresses[i].addr == ptr){
-			if (addresses[i].ref_count == 0){
+	struct addr_in_use * cursor = addresses;
+	while(cursor->next){
+		if (cursor->next->addr == ptr){
+			if (cursor->next->ref_count == 0){
 				//UNLOCK
 				sem_post(&sem_alloc);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
@@ -65,12 +71,15 @@ void cse320_free(void * ptr){
 				exit(-1);
 			}
 			free(ptr);
-			addresses[i].ref_count = 0;
+			struct addr_in_use * toFree = cursor->next;
+			free(toFree);
+			cursor->next = cursor->next->next;
 			//UNLOCK
 			sem_post(&sem_alloc);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
 			return;
 		}
+		cursor = cursor->next;
 	}
 	//UNLOCK
 	sem_post(&sem_alloc);
@@ -83,13 +92,15 @@ void cse320_free(void * ptr){
 FILE * cse320_fopen(const char * filename, const char * mode){
 	sigset_t block, prev;
 	sigfillset(&block);
+	
 	int i;
 	//LOCK
 	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_file);
-	for (i = 0; i < files_opened; i++){
-		if (strcmp(files[i].filename, filename) == 0){
-			files[i].ref_count++;
+	struct files_in_use * cursor = files;
+	while(cursor->next) {
+		if (strcmp(cursor->next->filename, filename) == 0){
+			cursor->next->ref_count++;
 			//UNLOCK
 			sigprocmask(SIG_SETMASK, &prev, NULL);
 			sem_post(&sem_file);
@@ -98,14 +109,15 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 	}
 	FILE * file = fopen(filename, mode);
 	if (file == NULL) return NULL;
-	files[files_opened].file = file;
-	files[files_opened].filename = filename;
-	files[files_opened].ref_count = 1;
-	files_opened++;
+	fileTail->next = malloc(sizeof(struct files_in_use));
+	fileTail = fileTail->next;
+	fileTail->file = file;
+	fileTail->filename = filename;
+	fileTail->ref_count = 1;
 	//UNLOCK
 	sem_post(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
-	return files[files_opened-1].file;
+	return file;
 }
 
 void cse320_fclose(const char* filename){
@@ -115,9 +127,10 @@ void cse320_fclose(const char* filename){
 	//LOCK
 	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_file);
-	for (i = 0; i <files_opened; i++){
-		if (strcmp(files[i].filename, filename) == 0){
-			if(files[i].ref_count == 0){
+	struct files_in_use * cursor = files;
+	while(cursor->next) {
+		if (strcmp(cursor->next->filename, filename) == 0){
+			if(cursor->next->ref_count == 0){
 				//UNLOCK
 				sem_post(&sem_file);
 				sigprocmask(SIG_SETMASK, &prev, NULL);

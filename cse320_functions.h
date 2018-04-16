@@ -10,18 +10,17 @@
 struct addr_in_use{
 	void* addr;
 	int ref_count;
+	struct addr_in_use * next;
 };
 struct files_in_use{
 	const char* filename;
 	int ref_count;
 	FILE * file;
+	struct files_in_use * next;
 };
 
-//TODO delete these so they cannot be accessed publicly once testings is complete
-extern int size_alloc;
-extern int files_opened;
-extern struct addr_in_use addresses[25];
-extern struct files_in_use files[25];
+extern struct addr_in_use * addresses;
+extern struct files_in_use * files;
 
 /*
  * Takes in a single parameter, the size in bytes to be allocated,
