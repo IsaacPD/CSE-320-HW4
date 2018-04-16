@@ -71,9 +71,11 @@ void cse320_free(void * ptr){
 				exit(-1);
 			}
 			free(ptr);
-			struct addr_in_use * toFree = cursor->next;
+			struct addr_in_use * toFree = cursor->next;	
+			if (toFree == addTail)
+				addTail = cursor;
+			cursor->next = toFree->next;
 			free(toFree);
-			cursor->next = cursor->next->next;
 			//UNLOCK
 			sem_post(&sem_alloc);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
@@ -104,8 +106,9 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 			//UNLOCK
 			sigprocmask(SIG_SETMASK, &prev, NULL);
 			sem_post(&sem_file);
-			return files[i].file;
+			return cursor->next->file;
 		}
+		cursor = cursor->next;
 	}
 	FILE * file = fopen(filename, mode);
 	if (file == NULL) return NULL;
@@ -138,12 +141,21 @@ void cse320_fclose(const char* filename){
 				errno = EINVAL;
 				exit(-1);
 			}
-			files[i].ref_count--;
+			cursor->next->ref_count--;
+			if (cursor->next->ref_count == 0){
+				fclose(cursor->next->file);
+				struct files_in_use * toFree = cursor->next;
+				if (toFree == fileTail)
+					fileTail = cursor;
+				cursor->next = toFree->next;
+				free(toFree);
+			}
 			//UNLOCK
 			sem_post(&sem_file);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
 			return;
 		}
+		cursor = cursor->next;
 	}
 	//UNLOCK
 	sem_post(&sem_file);
@@ -161,20 +173,32 @@ void cse320_clean(){
 	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_alloc);
 	sem_wait(&sem_file);
-	for (i = 0; i < size_alloc; i++){
-		if(addresses[i].ref_count > 0){
-			free(addresses[i].addr);
+	struct addr_in_use * cursor = addresses;
+	while (cursor->next){
+		if(cursor->next->ref_count > 0){
+			free(cursor->next->addr);
 		}
+		struct addr_in_use * next = cursor->next;
+		free(cursor);
+		cursor = next;
 	}
-	for (i = 0; i < files_opened; i++){
-		if (files[i].ref_count != -1){
-			fclose(files[i].file);
-			files[i].ref_count = -1;
+	free(cursor);
+	struct files_in_use * curs = files;
+	while (curs->next){
+		if (curs->next->ref_count > 0){
+			fclose(curs->next->file);
 		}
+		struct files_in_use * next = curs->next;
+		free(curs);
+		curs = next;
 	}
+	free(curs);
+
 	//UNLOCK
 	sem_post(&sem_alloc);
 	sem_post(&sem_file);
+	sem_destroy(&sem_alloc);
+	sem_destroy(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 }
 
