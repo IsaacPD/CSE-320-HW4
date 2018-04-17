@@ -12,6 +12,7 @@
 int size_alloc = 0;
 int files_opened = 0;
 int timer = 5;
+int alarmset = 0;
 
 struct addr_in_use addresses[25];
 struct files_in_use files[25];
@@ -179,10 +180,15 @@ void handler(int sig){
 }
 
 pid_t cse320_fork(){
-	signal(SIGALRM, handler);
+	if (alarmset == 0){
+		signal(SIGALRM, handler);
+	}
 	pid_t pid;
 	if ((pid = fork()) > 0){
-		alarm(timer);
+		if (alarmset == 0){
+			alarmset = 1;
+			alarm(timer);
+		}
 	}
 	return pid;
 }
