@@ -62,7 +62,7 @@ void cse320_free(void * ptr){
 				sem_post(&sem_alloc);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
 				fputs("Free: Double free attempt\n", stdout);
-				errno = 13;
+				errno = EFAULT;
 				exit(-1);
 			}
 			free(ptr);
@@ -86,8 +86,8 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 	sigset_t block, prev;
 	sigfillset(&block);
 	if (files_opened >= 25){
-		fputs("Too many files opened\n", stdout);
-		errno = ENFILE;
+		fputs("Too many opened files\n", stdout);
+		errno = EMFILE;
 		exit(-1);
 	}
 	int i;
@@ -133,8 +133,11 @@ void cse320_fclose(const char* filename){
 				exit(-1);
 			}
 			files[i].ref_count--;
-			if (files[i].ref_count == 0)
+			if (files[i].ref_count == 0){
 				fclose(files[i].file);
+				files[i].filename = NULL;
+				files[i].file = NULL;
+			}
 			//UNLOCK
 			sem_post(&sem_file);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
