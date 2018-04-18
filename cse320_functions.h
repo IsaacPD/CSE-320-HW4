@@ -17,12 +17,6 @@ struct files_in_use{
 	FILE * file;
 };
 
-//TODO delete these so they cannot be accessed publicly once testings is complete
-extern int size_alloc;
-extern int files_opened;
-extern struct addr_in_use addresses[25];
-extern struct files_in_use files[25];
-
 /*
  * Takes in a single parameter, the size in bytes to be allocated,
  * Returns a pointer to the beginning of this place in memory.

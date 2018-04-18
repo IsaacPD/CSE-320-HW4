@@ -29,7 +29,7 @@ void * cse320_malloc(size_t size){
 	sigset_t block, prev;
 	sigfillset(&block);
 	if (size_alloc >= 25){
-		printf("Not enough memory\n");
+		fputs("Not enough memory\n", stdout);
 		errno = ENOMEM;
 		exit(-1);
 	}
@@ -61,11 +61,12 @@ void cse320_free(void * ptr){
 				//UNLOCK
 				sem_post(&sem_alloc);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
-				printf("Free: Double free attempt\n");
+				fputs("Free: Double free attempt\n", stdout);
 				errno = 13;
 				exit(-1);
 			}
 			free(ptr);
+			addresses[i].addr = NULL;
 			addresses[i].ref_count = 0;
 			//UNLOCK
 			sem_post(&sem_alloc);
@@ -76,7 +77,7 @@ void cse320_free(void * ptr){
 	//UNLOCK
 	sem_post(&sem_alloc);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
-	printf("Free: Illegal address\n");
+	fputs("Free: Illegal address\n", stdout);
 	errno = EFAULT;
 	exit(-1);
 }
@@ -84,6 +85,11 @@ void cse320_free(void * ptr){
 FILE * cse320_fopen(const char * filename, const char * mode){
 	sigset_t block, prev;
 	sigfillset(&block);
+	if (files_opened >= 25){
+		fputs("Too many files opened\n", stdout);
+		errno = ENFILE;
+		exit(-1);
+	}
 	int i;
 	//LOCK
 	sigprocmask(SIG_BLOCK, &block, &prev);
@@ -122,7 +128,7 @@ void cse320_fclose(const char* filename){
 				//UNLOCK
 				sem_post(&sem_file);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
-				printf("Close: Ref count is zero\n");
+				fputs("Close: Ref count is zero\n", stdout);
 				errno = EINVAL;
 				exit(-1);
 			}
@@ -138,7 +144,7 @@ void cse320_fclose(const char* filename){
 	//UNLOCK
 	sem_post(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
-	printf("Close: Illegal filename\n");
+	fputs("Close: Illegal filename\n", stdout);
 	errno = ENOENT;
 	exit(-1);
 }
