@@ -67,7 +67,7 @@ void cse320_free(void * ptr){
 				//UNLOCK
 				sem_post(&sem_alloc);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
-				printf("Free: Double free attempt\n");
+				fputs("Free: Double free attempt\n", stdout);
 				errno = 13;
 				exit(-1);
 			}
@@ -87,7 +87,7 @@ void cse320_free(void * ptr){
 	//UNLOCK
 	sem_post(&sem_alloc);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
-	printf("Free: Illegal address\n");
+	fputs("Free: Illegal address\n", stdout);
 	errno = EFAULT;
 	exit(-1);
 }
@@ -138,7 +138,7 @@ void cse320_fclose(const char* filename){
 				//UNLOCK
 				sem_post(&sem_file);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
-				printf("Close: Ref count is zero\n");
+				fputs("Close: Ref count is zero\n", stdout);
 				errno = EINVAL;
 				exit(-1);
 			}
@@ -161,7 +161,7 @@ void cse320_fclose(const char* filename){
 	//UNLOCK
 	sem_post(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
-	printf("Close: Illegal filename\n");
+	fputs("Close: Illegal filename\n", stdout);
 	errno = ENOENT;
 	exit(-1);
 }

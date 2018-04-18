@@ -19,9 +19,6 @@ struct files_in_use{
 	struct files_in_use * next;
 };
 
-extern struct addr_in_use * addresses;
-extern struct files_in_use * files;
-
 /*
  * Takes in a single parameter, the size in bytes to be allocated,
  * Returns a pointer to the beginning of this place in memory.
