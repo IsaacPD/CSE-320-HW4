@@ -62,7 +62,7 @@ void cse320_free(void * ptr){
 				sigprocmask(SIG_SETMASK, &prev, NULL);
 				sem_post(&sem_alloc);
 				fputs("Free: Double free attempt\n", stdout);
-				errno = EFAULT;
+				errno = EADDRNOTAVAIL;
 				exit(-1);
 			}
 			free(ptr);
@@ -109,8 +109,10 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 		sem_post(&sem_file);
 	   	return NULL;
 	}
+	char * name = malloc(strlen(filename) + 1);
+	strcpy(name, filename);
 	files[files_opened].file = file;
-	files[files_opened].filename = filename;
+	files[files_opened].filename = name;
 	files[files_opened].ref_count = 1;
 	files_opened++;
 	//UNLOCK
@@ -139,6 +141,7 @@ void cse320_fclose(const char* filename){
 			files[i].ref_count--;
 			if (files[i].ref_count == 0){
 				fclose(files[i].file);
+				free(files[i].filename);
 				files[i].filename = NULL;
 				files[i].file = NULL;
 			}
@@ -160,7 +163,6 @@ void cse320_clean(){
 	sigset_t block, prev;
 	sigfillset(&block);
 	int i;
-	//LOCK
 	sem_wait(&sem_alloc);
 	sem_wait(&sem_file);
 	sigprocmask(SIG_BLOCK, &block, &prev);
@@ -172,9 +174,11 @@ void cse320_clean(){
 	for (i = 0; i < files_opened; i++){
 		if (files[i].ref_count > 0){
 			fclose(files[i].file);
+			free(files[i].filename);
+
 		}
 	}
-	//UNLOCK
+	
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	sem_post(&sem_alloc);
 	sem_post(&sem_file);

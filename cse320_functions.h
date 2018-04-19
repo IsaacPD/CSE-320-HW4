@@ -12,7 +12,7 @@ struct addr_in_use{
 	int ref_count;
 };
 struct files_in_use{
-	const char* filename;
+	char* filename;
 	int ref_count;
 	FILE * file;
 };
