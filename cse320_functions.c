@@ -31,6 +31,7 @@ void * cse320_malloc(size_t size){
 	if (size_alloc >= 25){
 		fputs("Not enough memory\n", stdout);
 		errno = ENOMEM;
+		cse320_clean();
 		exit(-1);
 	}
 	void * ret = malloc(size);
@@ -63,6 +64,7 @@ void cse320_free(void * ptr){
 				sem_post(&sem_alloc);
 				fputs("Free: Double free attempt\n", stdout);
 				errno = EADDRNOTAVAIL;
+				cse320_clean();
 				exit(-1);
 			}
 			free(ptr);
@@ -79,6 +81,7 @@ void cse320_free(void * ptr){
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	fputs("Free: Illegal address\n", stdout);
 	errno = EFAULT;
+	cse320_clean();
 	exit(-1);
 }
 
@@ -88,6 +91,7 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 	if (files_opened >= 25){
 		fputs("Too many opened files\n", stdout);
 		errno = EMFILE;
+		cse320_clean();
 		exit(-1);
 	}
 	int i;
@@ -136,6 +140,7 @@ void cse320_fclose(const char* filename){
 				sem_post(&sem_file);
 				fputs("Close: Ref count is zero\n", stdout);
 				errno = EINVAL;
+				cse320_clean();
 				exit(-1);
 			}
 			files[i].ref_count--;
@@ -156,6 +161,7 @@ void cse320_fclose(const char* filename){
 	sem_post(&sem_file);
 	fputs("Close: Illegal filename\n", stdout);
 	errno = ENOENT;
+	cse320_clean();
 	exit(-1);
 }
 
