@@ -31,7 +31,8 @@ If the file is not in the underlying list function calls exit(-1) and sets errno
 
 void 	cse320_fclose(const char *);
 
-Closes all open files and frees all memory with ref_count > 0.
+Closes all open files and frees all memory with ref_count > 0. Also destroys all semaphores, must be called
+only once at the end of execution.
 Ensures no memory leaks if called at end of execution.
 
 void	cse320_clean();
