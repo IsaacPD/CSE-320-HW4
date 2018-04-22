@@ -196,7 +196,7 @@ void handler(int sig){
 	sigset_t block, prev;
 	sigfillset(&block);
 	sigprocmask(SIG_BLOCK, &block, &prev);
-	while (wait(NULL) > 0){;}
+	while (wait(-1. NULL, WNOHANG) > 0){;}
 	alarm(timer);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return;
