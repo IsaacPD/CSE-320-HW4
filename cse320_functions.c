@@ -36,10 +36,10 @@ void * cse320_malloc(size_t size){
 	sigset_t block, prev;
 	sigfillset(&block);
 	void * ret = malloc(size);
-	sigprocmask(SIG_BLOCK, &block, &prev);
 
 	//LOCK HERE
 	sem_wait(&sem_alloc);
+	sigprocmask(SIG_BLOCK, &block, &prev);
 	addTail->next = malloc(sizeof(struct addr_in_use));
 	addTail = addTail->next;
 
@@ -47,9 +47,9 @@ void * cse320_malloc(size_t size){
 	addTail->ref_count = 1;	
 	
 	//UNLOCK HERE
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 	sem_post(&sem_alloc);
 	
-	sigprocmask(SIG_SETMASK, &prev, NULL);
 	return ret;
 }
 
@@ -58,15 +58,15 @@ void cse320_free(void * ptr){
 	sigfillset(&block);	
 	int i;
 	//LOCK
-	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_alloc);
+	sigprocmask(SIG_BLOCK, &block, &prev);
 	struct addr_in_use * cursor = addresses;
 	while(cursor->next){
 		if (cursor->next->addr == ptr){
 			if (cursor->next->ref_count == 0){
 				//UNLOCK
-				sem_post(&sem_alloc);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
+				sem_post(&sem_alloc);
 				fputs("Free: Double free attempt\n", stdout);
 				errno = 13;
 				exit(-1);
@@ -78,15 +78,15 @@ void cse320_free(void * ptr){
 			cursor->next = toFree->next;
 			free(toFree);
 			//UNLOCK
-			sem_post(&sem_alloc);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
+			sem_post(&sem_alloc);
 			return;
 		}
 		cursor = cursor->next;
 	}
 	//UNLOCK
-	sem_post(&sem_alloc);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
+	sem_post(&sem_alloc);
 	fputs("Free: Illegal address\n", stdout);
 	errno = EFAULT;
 	exit(-1);
@@ -98,8 +98,8 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 	
 	int i;
 	//LOCK
-	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_file);
+	sigprocmask(SIG_BLOCK, &block, &prev);
 	struct files_in_use * cursor = files;
 	while(cursor->next) {
 		if (strcmp(cursor->next->filename, filename) == 0){
@@ -112,15 +112,19 @@ FILE * cse320_fopen(const char * filename, const char * mode){
 		cursor = cursor->next;
 	}
 	FILE * file = fopen(filename, mode);
-	if (file == NULL) return NULL;
+	if (file == NULL) {
+		sigprocmask(SIG_SETMASK, &prev, NULL);
+		sem_post(&sem_file);
+		return NULL;
+	}
 	fileTail->next = malloc(sizeof(struct files_in_use));
 	fileTail = fileTail->next;
 	fileTail->file = file;
 	fileTail->filename = filename;
 	fileTail->ref_count = 1;
 	//UNLOCK
-	sem_post(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
+	sem_post(&sem_file);
 	return file;
 }
 
@@ -129,15 +133,15 @@ void cse320_fclose(const char* filename){
 	sigfillset(&block);
 	int i;
 	//LOCK
-	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_file);
+	sigprocmask(SIG_BLOCK, &block, &prev);
 	struct files_in_use * cursor = files;
 	while(cursor->next) {
 		if (strcmp(cursor->next->filename, filename) == 0){
 			if(cursor->next->ref_count == 0){
 				//UNLOCK
-				sem_post(&sem_file);
 				sigprocmask(SIG_SETMASK, &prev, NULL);
+				sem_post(&sem_file);
 				fputs("Close: Ref count is zero\n", stdout);
 				errno = EINVAL;
 				exit(-1);
@@ -152,15 +156,15 @@ void cse320_fclose(const char* filename){
 				free(toFree);
 			}
 			//UNLOCK
-			sem_post(&sem_file);
 			sigprocmask(SIG_SETMASK, &prev, NULL);
+			sem_post(&sem_file);
 			return;
 		}
 		cursor = cursor->next;
 	}
 	//UNLOCK
-	sem_post(&sem_file);
 	sigprocmask(SIG_SETMASK, &prev, NULL);
+	sem_post(&sem_file);
 	fputs("Close: Illegal filename\n", stdout);
 	errno = ENOENT;
 	exit(-1);
@@ -171,9 +175,9 @@ void cse320_clean(){
 	sigfillset(&block);
 	int i;
 	//LOCK
-	sigprocmask(SIG_BLOCK, &block, &prev);
 	sem_wait(&sem_alloc);
 	sem_wait(&sem_file);
+	sigprocmask(SIG_BLOCK, &block, &prev);
 	struct addr_in_use * cursor = addresses;
 	while (cursor->next){
 		if(cursor->next->ref_count > 0){
@@ -196,11 +200,11 @@ void cse320_clean(){
 	free(curs);
 
 	//UNLOCK
+	sigprocmask(SIG_SETMASK, &prev, NULL);
 	sem_post(&sem_alloc);
 	sem_post(&sem_file);
 	sem_destroy(&sem_alloc);
 	sem_destroy(&sem_file);
-	sigprocmask(SIG_SETMASK, &prev, NULL);
 }
 
 void handler(int sig){
